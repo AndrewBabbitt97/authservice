@@ -82,6 +82,7 @@ google::rpc::Code OidcFilter::Process(
       spdlog::info("{}: Removing session info from session store during logout", __func__);
       try {
         session_store_->RemoveSession(session_id_optional.value());
+        spdlog::trace("Removed session: {}", session_id_optional.value());
       } catch (SessionError &err) {
         spdlog::error("{}: Session error in RemoveSession: {}", __func__, err.what());
         return SessionErrorResponse(response, err);
@@ -100,6 +101,11 @@ google::rpc::Code OidcFilter::Process(
         "{}: ID Token header already present. Allowing request to proceed without adding any additional headers.",
         __func__);
     return google::rpc::Code::OK;
+  }
+  else {
+    spdlog::info(
+        "{}: ID Token header no present.",
+        __func__);
   }
 
   // If the request does not have a session_id cookie,
@@ -191,10 +197,12 @@ google::rpc::Code OidcFilter::RedirectToIdp(
     CheckResponse *response,
     const AttributeContext_HttpRequest &httpRequest,
     absl::optional<std::string> old_session_id) {
+  spdlog::trace("{}", __func__);
   if (old_session_id.has_value()) {
     try {
       // remove old session and regenerate session_id to prevent session fixation attacks
       session_store_->RemoveSession(old_session_id.value());
+      spdlog::trace("Removed stale session: {}", old_session_id.value());
     } catch (SessionError &err) {
       spdlog::error("{}: Session error in RemoveSession: {}", __func__, err.what());
       return SessionErrorResponse(response, err);
@@ -219,6 +227,12 @@ google::rpc::Code OidcFilter::RedirectToIdp(
       {"state", state},
       {"redirect_uri", idp_config_.callback_uri()}};
   auto query = common::http::Http::EncodeQueryData(params);
+
+  spdlog::trace("scope: {}", encoded_scopes);
+  spdlog::trace("client_id: {}", idp_config_.client_id());
+  spdlog::trace("nonce: {}", nonce);
+  spdlog::trace("state: {}", state);
+  spdlog::trace("redirect_uri: {}", idp_config_.callback_uri());
 
   SetStandardResponseHeaders(response);
 
@@ -588,6 +602,9 @@ google::rpc::Code OidcFilter::RetrieveToken(
       if (!access_token.has_value()) {
         spdlog::info("{}: Missing expected access_token", __func__);
         return google::rpc::Code::INVALID_ARGUMENT;
+      }
+      else {
+        spdlog::trace("Access token: {}", access_token.value());
       }
     }
 

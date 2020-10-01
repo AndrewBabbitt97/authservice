@@ -72,6 +72,8 @@ void InMemorySessionStore::SetTokenResponse(absl::string_view session_id,
 }
 
 std::shared_ptr<TokenResponse> InMemorySessionStore::GetTokenResponse(absl::string_view session_id) {
+  spdlog::trace("{}:", __func__);
+  spdlog::trace("Getting token response for session id: {}", session_id.data());
   synchronized(mutex_) {
     auto session_optional = FindSession(session_id);
     if (!session_optional.has_value()) {
@@ -111,12 +113,15 @@ void InMemorySessionStore::RemoveAllExpired() {
 }
 
 void InMemorySessionStore::RemoveSession(absl::string_view session_id) {
+  spdlog::trace("{}:", __func__);
+  spdlog::trace("Removing session: {}", session_id.data());
   synchronized(mutex_) {
     session_map_.erase(session_id.data());
   }
 }
 
 absl::optional<std::shared_ptr<Session>> InMemorySessionStore::FindSession(absl::string_view session_id) {
+  spdlog::trace("{}:", __func__);
   synchronized(mutex_) {
     auto search = session_map_.find(session_id.data());
     if (search == session_map_.end()) {
@@ -128,6 +133,7 @@ absl::optional<std::shared_ptr<Session>> InMemorySessionStore::FindSession(absl:
 
 void InMemorySessionStore::SetAuthorizationState(absl::string_view session_id,
                                                  std::shared_ptr<AuthorizationState> authorization_state) {
+  spdlog::trace("{}:", __func__);
   std::function<void(Session &)> authorization_state_setter = [&authorization_state](Session &session) {
     session.SetAuthorizationState(authorization_state);
   };
@@ -136,11 +142,15 @@ void InMemorySessionStore::SetAuthorizationState(absl::string_view session_id,
 
 std::shared_ptr<AuthorizationState> InMemorySessionStore::GetAuthorizationState(absl::string_view session_id) {
   synchronized(mutex_) {
+    spdlog::trace("{}:", __func__);
     auto session_optional = FindSession(session_id);
     if (!session_optional.has_value()) {
+      spdlog::trace("Session not found: id {}", session_id.data());
       return nullptr;
     }
     auto session = session_optional.value();
+    spdlog::trace("Getting authorization state: id {}", session_id.data());
+    spdlog::trace("Getting authorization state: time accessed {}", session->GetTimeMostRecentlyAccessed());
     session->SetTimeMostRecentlyAccessed(time_service_->GetCurrentTimeInSecondsSinceEpoch());
     return session->GetAuthorizationState();
   }
@@ -148,10 +158,13 @@ std::shared_ptr<AuthorizationState> InMemorySessionStore::GetAuthorizationState(
 
 void InMemorySessionStore::ClearAuthorizationState(absl::string_view session_id) {
   synchronized(mutex_) {
+    spdlog::trace("{}:", __func__);
     auto session_optional = FindSession(session_id);
     if (session_optional.has_value()) {
       auto session = session_optional.value();
       session->SetTimeMostRecentlyAccessed(time_service_->GetCurrentTimeInSecondsSinceEpoch());
+      spdlog::trace("Clearing authorization state: id {}", session_id.data());
+      spdlog::trace("Clearing authorization state: time accessed {}", session->GetTimeMostRecentlyAccessed());
       session->ClearAuthorizationState();
     }
   }
@@ -159,13 +172,18 @@ void InMemorySessionStore::ClearAuthorizationState(absl::string_view session_id)
 
 void InMemorySessionStore::Set(absl::string_view session_id, std::function<void(Session &session)> &lambda) {
   synchronized(mutex_) {
+    spdlog::trace("{}:", __func__);
     auto session_optional = FindSession(session_id);
     if (session_optional.has_value()) {
       auto session = session_optional.value();
       session->SetTimeMostRecentlyAccessed(time_service_->GetCurrentTimeInSecondsSinceEpoch());
+      spdlog::trace("Updating session: id {}", session_id.data());
+      spdlog::trace("Updating session: time accessed {}", session->GetTimeMostRecentlyAccessed());
       lambda(*session);
     } else {
       auto new_session = std::make_shared<Session>(time_service_->GetCurrentTimeInSecondsSinceEpoch());
+      spdlog::trace("Creating session: id {}", session_id.data());
+      spdlog::trace("Creating session: time accessed {}", new_session->GetTimeMostRecentlyAccessed());
       lambda(*new_session);
       session_map_.emplace(session_id.data(), new_session);
     }
